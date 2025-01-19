@@ -3,6 +3,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Activity {
     pub activity_id: Uuid,
     pub user_id: Uuid,
