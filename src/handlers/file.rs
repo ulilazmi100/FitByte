@@ -6,7 +6,7 @@ use serde_json::json;
 use actix_multipart::Multipart;
 use futures_util::StreamExt;
 use log::{info, error};
-use infer; // Add this import
+use infer;
 
 pub async fn upload_file(
     req: HttpRequest,
