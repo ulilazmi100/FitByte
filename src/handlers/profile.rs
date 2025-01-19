@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, HttpRequest, HttpMessage};
+use actix_web::{web, HttpRequest, HttpResponse, HttpMessage};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use chrono::Utc;
@@ -7,7 +7,7 @@ use crate::errors::AppError;
 use crate::utils::validation::{validate_payload, validate_preference, validate_weight_unit, validate_height_unit};
 use crate::utils::jwt::Claims;
 
-#[derive(Deserialize, Validate, Clone)] // Add `Clone` trait
+#[derive(Deserialize, Validate, Clone)]
 pub struct ProfileUpdate {
     #[validate(length(min = 2, max = 60, message = "Name must be between 2 and 60 characters"))]
     name: Option<String>,
@@ -48,8 +48,10 @@ pub async fn get_profile(
     req: HttpRequest,
     pool: web::Data<sqlx::PgPool>,
 ) -> Result<HttpResponse, AppError> {
+    // Extract claims from request extensions
     let extensions = req.extensions();
-    let claims = extensions.get::<Claims>().unwrap();
+    let claims = extensions.get::<Claims>()
+        .ok_or_else(|| AppError::Unauthorized("Invalid token in claim".to_string()))?;
 
     // Fetch user from database
     let user = sqlx::query_as!(
@@ -81,25 +83,23 @@ pub async fn update_profile(
     pool: web::Data<sqlx::PgPool>,
     updates: web::Json<ProfileUpdate>,
 ) -> Result<HttpResponse, AppError> {
-    // Clone the updates payload to avoid moving it
-    let updates_clone = updates.clone();
+    // Extract claims from request extensions
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>()
+        .ok_or_else(|| AppError::Unauthorized("Invalid token in claim".to_string()))?;
 
     // Validate payload
-    validate_payload(&updates_clone)?;
-
     // Validate preference, weight unit, and height unit
-    if let Some(preference) = &updates_clone.preference {
+    if let Some(preference) = &updates.preference {
         validate_preference(preference)?;
     }
-    if let Some(weight_unit) = &updates_clone.weight_unit {
+    if let Some(weight_unit) = &updates.weight_unit {
         validate_weight_unit(weight_unit)?;
     }
-    if let Some(height_unit) = &updates_clone.height_unit {
+    if let Some(height_unit) = &updates.height_unit {
         validate_height_unit(height_unit)?;
     }
-
-    let extensions = req.extensions();
-    let claims = extensions.get::<Claims>().unwrap();
+    updates.validate().map_err(|err| AppError::BadRequest(err.to_string()))?;
 
     // Fetch user from database
     let user = sqlx::query_as!(
@@ -116,13 +116,13 @@ pub async fn update_profile(
     let now = Utc::now();
     sqlx::query!(
         "UPDATE users SET preference = $1, weight_unit = $2, height_unit = $3, weight = $4, height = $5, name = $6, image_uri = $7, updated_at = $8 WHERE user_id = $9",
-        updates_clone.preference,
-        updates_clone.weight_unit,
-        updates_clone.height_unit,
-        updates_clone.weight,
-        updates_clone.height,
-        updates_clone.name,
-        updates_clone.image_uri,
+        updates.preference,
+        updates.weight_unit,
+        updates.height_unit,
+        updates.weight,
+        updates.height,
+        updates.name,
+        updates.image_uri,
         now,
         user.user_id
     )
@@ -132,13 +132,13 @@ pub async fn update_profile(
 
     // Return response
     Ok(HttpResponse::Ok().json(ProfileResponse {
-        preference: updates_clone.preference.clone(),
-        weight_unit: updates_clone.weight_unit.clone(),
-        height_unit: updates_clone.height_unit.clone(),
-        weight: updates_clone.weight,
-        height: updates_clone.height,
+        preference: updates.preference.clone(),
+        weight_unit: updates.weight_unit.clone(),
+        height_unit: updates.height_unit.clone(),
+        weight: updates.weight,
+        height: updates.height,
         email: user.email,
-        name: updates_clone.name.clone(),
-        image_uri: updates_clone.image_uri.clone(),
+        name: updates.name.clone(),
+        image_uri: updates.image_uri.clone(),
     }))
 }
