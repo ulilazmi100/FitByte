@@ -6,7 +6,6 @@ mod errors;
 
 use actix_web::{web, App, HttpServer};
 use dotenv::dotenv;
-use sqlx::PgPool;
 use std::env;
 use log::info;
 use crate::utils::s3::create_s3_client;
@@ -30,7 +29,11 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize the database pool
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = PgPool::connect(&database_url).await.expect("Failed to connect to the database");
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(50)
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to the database");
 
     info!("Starting server at 127.0.0.1:8080");
 
