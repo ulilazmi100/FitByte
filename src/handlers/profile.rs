@@ -1,10 +1,11 @@
-use actix_web::{web, HttpResponse, HttpRequest};
+use actix_web::{web, HttpResponse, HttpRequest, HttpMessage};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use chrono::Utc;
 use crate::models::user::User;
 use crate::errors::AppError;
 use crate::utils::validation::{validate_payload, validate_preference, validate_weight_unit, validate_height_unit};
+use crate::utils::jwt::Claims;
 
 #[derive(Deserialize, Validate, Clone)] // Add `Clone` trait
 pub struct ProfileUpdate {
@@ -47,15 +48,8 @@ pub async fn get_profile(
     req: HttpRequest,
     pool: web::Data<sqlx::PgPool>,
 ) -> Result<HttpResponse, AppError> {
-    // Extract token from headers
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-
-    // Validate token
-    let claims = crate::utils::jwt::validate_token(token)
-        .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>().unwrap();
 
     // Fetch user from database
     let user = sqlx::query_as!(
@@ -104,15 +98,8 @@ pub async fn update_profile(
         validate_height_unit(height_unit)?;
     }
 
-    // Extract token from headers
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-
-    // Validate token
-    let claims = crate::utils::jwt::validate_token(token)
-        .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>().unwrap();
 
     // Fetch user from database
     let user = sqlx::query_as!(

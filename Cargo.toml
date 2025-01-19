@@ -27,3 +27,4 @@ time = { version = "0.3", features = ["serde"] }
 aws-types = "1.3.3"
 futures-util = "0.3.0"
 url = "2.2"
+actix-web-httpauth = "0.8.2"

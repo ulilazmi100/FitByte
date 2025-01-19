@@ -11,6 +11,8 @@ use std::env;
 use log::info;
 use crate::utils::s3::create_s3_client;
 use env_logger::Env;
+use actix_web::middleware::Logger;
+use actix_web_httpauth::middleware::HttpAuthentication;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -32,9 +34,13 @@ async fn main() -> std::io::Result<()> {
 
     info!("Starting server at 127.0.0.1:8080");
 
+    // Authentication middleware
+    let auth = HttpAuthentication::bearer(crate::utils::jwt::validator);
+
     // Start the HTTP server
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(s3_client.clone()))
             .service(
@@ -47,17 +53,27 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 web::resource("/v1/user")
+                    .wrap(auth.clone())
                     .route(web::get().to(handlers::profile::get_profile))
                     .route(web::patch().to(handlers::profile::update_profile)),
             )
             .service(
                 web::resource("/v1/file")
-                     .route(web::post().to(handlers::file::upload_file)),
+                    .wrap(auth.clone())
+                    .route(web::post().to(handlers::file::upload_file)),
             )
             .service(
                 web::resource("/v1/activity")
+                    .route(web::get().to(handlers::activity::get_activities)),
+            )
+            .service(
+                web::resource("/v1/activity")
+                    .wrap(auth.clone())
                     .route(web::post().to(handlers::activity::create_activity))
-                    .route(web::get().to(handlers::activity::get_activities))
+            )
+            .service(
+                web::resource("/v1/activity/{activityId}")
+                    .wrap(auth.clone())
                     .route(web::patch().to(handlers::activity::update_activity))
                     .route(web::delete().to(handlers::activity::delete_activity)),
             )

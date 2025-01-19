@@ -1,13 +1,11 @@
 use actix_web::{web, HttpResponse, HttpRequest, Error};
 use aws_sdk_s3::Client as S3Client;
 use uuid::Uuid;
-use crate::utils;
 use std::env;
 use serde_json::json;
 use actix_multipart::Multipart;
 use futures_util::StreamExt;
 use log::{info, error};
-
 use infer; // Add this import
 
 pub async fn upload_file(
@@ -15,24 +13,6 @@ pub async fn upload_file(
     s3_client: web::Data<S3Client>,
     payload: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    // Extract and validate JWT token
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.strip_prefix("Bearer "))
-        .ok_or_else(|| {
-            error!("Missing or invalid token");
-            actix_web::error::ErrorUnauthorized("Missing or invalid token")
-        })?;
-
-    info!("Token: {:?}", token);
-
-    // Validate the token
-    utils::jwt::validate_token(token)
-        .map_err(|err| {
-            error!("Invalid token: {:?}", err);
-            actix_web::error::ErrorUnauthorized("Invalid token")
-        })?;
-
     // Parse multipart form-data
     let mut multipart = Multipart::new(&req.headers(), payload);
     let mut file_data = Vec::new();

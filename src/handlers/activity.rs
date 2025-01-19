@@ -1,10 +1,11 @@
-use actix_web::{web, HttpResponse, HttpRequest};
+use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use crate::models::{activity::Activity, user::User};
 use crate::errors::AppError;
+use crate::utils::jwt::Claims;
 
 #[derive(Deserialize, Validate)]
 pub struct ActivityRequest {
@@ -51,15 +52,8 @@ pub async fn create_activity(
     // Validate payload
     payload.validate().map_err(|err| AppError::BadRequest(err.to_string()))?;
 
-    // Extract token from headers
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-
-    // Validate token
-    let claims = crate::utils::jwt::validate_token(token)
-        .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>().unwrap();
 
     // Fetch user from database
     let user = sqlx::query_as!(
@@ -118,15 +112,8 @@ pub async fn get_activities(
     req: HttpRequest,
     pool: web::Data<sqlx::PgPool>,
 ) -> Result<HttpResponse, AppError> {
-    // Extract token from headers
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-
-    // Validate token
-    let claims = crate::utils::jwt::validate_token(token)
-        .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>().unwrap();
 
     // Fetch user from database
     let user = sqlx::query_as!(
@@ -163,15 +150,8 @@ pub async fn update_activity(
     // Validate payload
     payload.validate().map_err(|err| AppError::BadRequest(err.to_string()))?;
 
-    // Extract token from headers
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-
-    // Validate token
-    let claims = crate::utils::jwt::validate_token(token)
-        .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>().unwrap();
 
     // Fetch user from database
     let user = sqlx::query_as!(
@@ -240,15 +220,8 @@ pub async fn delete_activity(
     pool: web::Data<sqlx::PgPool>,
     activity_id: web::Path<Uuid>,
 ) -> Result<HttpResponse, AppError> {
-    // Extract token from headers
-    let token = req.headers().get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.split_whitespace().nth(1))
-        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-
-    // Validate token
-    let claims = crate::utils::jwt::validate_token(token)
-        .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+    let extensions = req.extensions();
+    let claims = extensions.get::<Claims>().unwrap();
 
     // Fetch user from database
     let user = sqlx::query_as!(
