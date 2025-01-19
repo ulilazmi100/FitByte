@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::Utc;
 use argon2::{Argon2, password_hash::PasswordHasher, password_hash::SaltString, PasswordVerifier};
 use jsonwebtoken::{encode, Header, EncodingKey};
-use validator::{Validate, ValidationErrors};
+use validator::Validate;
 use std::env;
 use rand;
 use crate::utils::jwt::Claims;
