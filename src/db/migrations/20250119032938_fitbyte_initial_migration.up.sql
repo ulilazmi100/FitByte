@@ -25,3 +25,12 @@ CREATE TABLE activities (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities (user_id);
+CREATE INDEX IF NOT EXISTS idx_activities_done_at ON activities (done_at);
+CREATE INDEX IF NOT EXISTS idx_activities_activity_type ON activities (activity_type);
+CREATE INDEX IF NOT EXISTS idx_activities_calories_burned ON activities (calories_burned);
+
+CREATE INDEX IF NOT EXISTS idx_activities_user_done ON activities (user_id, done_at);
