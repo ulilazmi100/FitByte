@@ -138,7 +138,11 @@ pub async fn get_activities(
     )
     .fetch_optional(&**pool)
     .await
-    .map_err(|_| AppError::InternalServerError("Database error".to_string()))?
+    .map_err(|e| {
+        AppError::InternalServerError(format!(
+            "Database error: {}", e
+        ))
+    })?
     .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
     // Build query
@@ -153,12 +157,12 @@ pub async fn get_activities(
     }
 
     if let Some(done_at_from) = &query.done_at_from {
-        sql_query.push_str(" AND done_at >= $3");
+        sql_query.push_str(" AND done_at >= $3::timestamptz");
         params.push(done_at_from.clone());
     }
 
     if let Some(done_at_to) = &query.done_at_to {
-        sql_query.push_str(" AND done_at <= $4");
+        sql_query.push_str(" AND done_at <= $4::timestamptz");
         params.push(done_at_to.clone());
     }
 
@@ -176,6 +180,20 @@ pub async fn get_activities(
     params.push(limit.to_string());
     params.push(offset.to_string());
 
+    // // Construct the query with bound values for error logging
+    // let query_with_values = format!(
+    //     "{}",
+    //     sql_query
+    //         .replace("$1", &format!("'{}'", user.user_id))
+    //         .replace("$2", &format!("'{}'", query.activity_type.as_deref().unwrap_or("NULL")))
+    //         .replace("$3", &format!("'{}'::timestamptz", query.done_at_from.as_deref().unwrap_or("NULL")))
+    //         .replace("$4", &format!("'{}'::timestamptz", query.done_at_to.as_deref().unwrap_or("NULL")))
+    //         .replace("$5", &query.calories_burned_min.unwrap_or(0).to_string())
+    //         .replace("$6", &query.calories_burned_max.unwrap_or(0).to_string())
+    //         .replace("$7", &limit.to_string())
+    //         .replace("$8", &offset.to_string())
+    // );
+
     // Fetch activities for the user
     let activities = sqlx::query_as::<_, Activity>(&sql_query)
         .bind(&user.user_id)
@@ -188,7 +206,11 @@ pub async fn get_activities(
         .bind(offset)
         .fetch_all(&**pool)
         .await
-        .map_err(|_| AppError::InternalServerError("Database error".to_string()))?;
+        .map_err(|e| {
+            AppError::InternalServerError(format!(
+                "Database error: {}", e
+            ))
+        })?;
 
     // Return response
     Ok(HttpResponse::Ok().json(activities))
