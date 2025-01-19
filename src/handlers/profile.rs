@@ -4,10 +4,11 @@ use validator::Validate;
 use chrono::Utc;
 use crate::models::user::User;
 use crate::errors::AppError;
-use crate::utils::validation::{validate_payload, validate_preference, validate_weight_unit, validate_height_unit};
+use crate::utils::validation::{validate_preference, validate_weight_unit, validate_height_unit, validate_url};
 use crate::utils::jwt::Claims;
 
 #[derive(Deserialize, Validate, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ProfileUpdate {
     #[validate(length(min = 2, max = 60, message = "Name must be between 2 and 60 characters"))]
     name: Option<String>,
@@ -32,6 +33,7 @@ pub struct ProfileUpdate {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ProfileResponse {
     preference: Option<String>,
     weight_unit: Option<String>,
@@ -77,6 +79,13 @@ pub async fn get_profile(
     }))
 }
 
+// Helper function to check for null values in the input
+fn has_null_fields(updates: &ProfileUpdate) -> bool {
+    updates.name.is_none() || updates.image_uri.is_none() || updates.weight.is_none() ||
+    updates.height.is_none() || updates.preference.is_none() || updates.weight_unit.is_none() ||
+    updates.height_unit.is_none()
+}
+
 // PATCH /v1/user
 pub async fn update_profile(
     req: HttpRequest,
@@ -89,6 +98,12 @@ pub async fn update_profile(
         .ok_or_else(|| AppError::Unauthorized("Invalid token in claim".to_string()))?;
 
     // Validate payload
+
+    // Check for null values in the input
+    if has_null_fields(&updates) {
+        return Err(AppError::BadRequest("Fields cannot be null if provided".to_string()));
+    }
+
     // Validate preference, weight unit, and height unit
     if let Some(preference) = &updates.preference {
         validate_preference(preference)?;
@@ -99,6 +114,15 @@ pub async fn update_profile(
     if let Some(height_unit) = &updates.height_unit {
         validate_height_unit(height_unit)?;
     }
+
+    if let Some(uri) = &updates.image_uri {
+        if uri.is_empty() {
+            return Err(AppError::BadRequest("Image URI cannot be empty if provided".to_string()));
+        }
+        validate_url(uri)?;
+    }
+
+    // Validate the entire payload, including the image URI
     updates.validate().map_err(|err| AppError::BadRequest(err.to_string()))?;
 
     // Fetch user from database

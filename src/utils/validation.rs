@@ -1,3 +1,4 @@
+use regex::Regex;
 use validator::Validate;
 use crate::errors::AppError;
 
@@ -23,6 +24,16 @@ pub fn validate_weight_unit(weight_unit: &str) -> Result<(), AppError> {
 pub fn validate_height_unit(height_unit: &str) -> Result<(), AppError> {
     if !["CM", "INCH"].contains(&height_unit) {
         return Err(AppError::BadRequest("Height unit must be either CM or INCH".to_string()));
+    }
+    Ok(())
+}
+
+// Regex validation for uri
+pub fn validate_url(uri: &str) -> Result<(), AppError> {
+    let re = Regex::new(r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/[^\s]*)?$").unwrap();
+    
+    if !re.is_match(uri) {
+        return Err(AppError::BadRequest("Invalid URI. It should be URI".to_string()));
     }
     Ok(())
 }
