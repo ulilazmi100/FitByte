@@ -35,6 +35,18 @@ pub struct ActivityResponse {
     updated_at: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetActivitiesQuery {
+    limit: Option<i32>,
+    offset: Option<i32>,
+    activity_type: Option<String>,
+    done_at_from: Option<String>,
+    done_at_to: Option<String>,
+    calories_burned_min: Option<i32>,
+    calories_burned_max: Option<i32>,
+}
+
 // Helper function to calculate calories burned
 fn calculate_calories_burned(activity_type: &str, duration: i32) -> Result<i32, AppError> {
     match activity_type {
@@ -113,6 +125,7 @@ pub async fn create_activity(
 pub async fn get_activities(
     req: HttpRequest,
     pool: web::Data<sqlx::PgPool>,
+    query: web::Query<GetActivitiesQuery>,
 ) -> Result<HttpResponse, AppError> {
     let extensions = req.extensions();
     let claims = extensions.get::<Claims>().unwrap();
@@ -128,15 +141,54 @@ pub async fn get_activities(
     .map_err(|_| AppError::InternalServerError("Database error".to_string()))?
     .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
+    // Build query
+    let limit = query.limit.unwrap_or(5);
+    let offset = query.offset.unwrap_or(0);
+    let mut sql_query = "SELECT * FROM activities WHERE user_id = $1".to_string();
+    let mut params: Vec<String> = vec![user.user_id.to_string()];
+
+    if let Some(activity_type) = &query.activity_type {
+        sql_query.push_str(" AND activity_type = $2");
+        params.push(activity_type.clone());
+    }
+
+    if let Some(done_at_from) = &query.done_at_from {
+        sql_query.push_str(" AND done_at >= $3");
+        params.push(done_at_from.clone());
+    }
+
+    if let Some(done_at_to) = &query.done_at_to {
+        sql_query.push_str(" AND done_at <= $4");
+        params.push(done_at_to.clone());
+    }
+
+    if let Some(calories_burned_min) = query.calories_burned_min {
+        sql_query.push_str(" AND calories_burned >= $5");
+        params.push(calories_burned_min.to_string());
+    }
+
+    if let Some(calories_burned_max) = query.calories_burned_max {
+        sql_query.push_str(" AND calories_burned <= $6");
+        params.push(calories_burned_max.to_string());
+    }
+
+    sql_query.push_str(" LIMIT $7 OFFSET $8");
+    params.push(limit.to_string());
+    params.push(offset.to_string());
+
     // Fetch activities for the user
-    let activities = sqlx::query_as!(
-        Activity,
-        "SELECT * FROM activities WHERE user_id = $1",
-        user.user_id
-    )
-    .fetch_all(&**pool)
-    .await
-    .map_err(|_| AppError::InternalServerError("Database error".to_string()))?;
+    let activities = sqlx::query_as::<_, Activity>(&sql_query)
+        .bind(&user.user_id)
+        .bind(&query.activity_type)
+        .bind(&query.done_at_from)
+        .bind(&query.done_at_to)
+        .bind(&query.calories_burned_min)
+        .bind(&query.calories_burned_max)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&**pool)
+        .await
+        .map_err(|_| AppError::InternalServerError("Database error".to_string()))?;
 
     // Return response
     Ok(HttpResponse::Ok().json(activities))
