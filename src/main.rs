@@ -64,12 +64,8 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 web::resource("/v1/activity")
-                    .route(web::get().to(handlers::activity::get_activities)),
-            )
-            .service(
-                web::resource("/v1/activity")
-                    .wrap(auth.clone())
-                    .route(web::post().to(handlers::activity::create_activity))
+                    .route(web::get().to(handlers::activity::get_activities))
+                    .route(web::post().to(handlers::activity::create_activity).wrap(auth.clone())),
             )
             .service(
                 web::resource("/v1/activity/{activityId}")
