@@ -8,6 +8,7 @@ use crate::errors::AppError;
 use crate::utils::jwt::Claims;
 
 #[derive(Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
 pub struct ActivityRequest {
     #[validate(required(message = "Activity type is required"))]
     #[validate(length(min = 1, message = "Activity type cannot be empty"))]
@@ -23,6 +24,7 @@ pub struct ActivityRequest {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActivityResponse {
     activity_id: Uuid,
     activity_type: String,
