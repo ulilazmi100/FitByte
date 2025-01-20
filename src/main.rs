@@ -34,7 +34,9 @@ async fn main() -> std::io::Result<()> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect to the database");
 
-    info!("Starting server at 127.0.0.1:8080");
+    // Fetch the server bind address from an environment variable, default to "127.0.0.1:8080"
+    let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+    info!("Starting server at {}", bind_address);
 
     // Authentication middleware
     let auth = HttpAuthentication::bearer(crate::utils::jwt::validator);
@@ -87,7 +89,7 @@ async fn main() -> std::io::Result<()> {
                     .route(web::delete().to(handlers::activity::delete_activity)),
             )
     })
-    .bind("127.0.0.1:8080")?
+    .bind(&bind_address)?
     .run()
     .await
 }
