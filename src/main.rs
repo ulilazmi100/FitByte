@@ -5,13 +5,16 @@ mod db;
 mod errors;
 
 use actix_web::{web, App, HttpServer};
+use actix_web_prom::PrometheusMetricsBuilder;
 use dotenv::dotenv;
+use sqlx::PgPool;
 use std::env;
 use log::info;
 use crate::utils::s3::create_s3_client;
 use env_logger::Env;
 use actix_web::middleware::Logger;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use std::collections::HashMap;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -29,23 +32,29 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize the database pool
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(50)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to the database");
+    let pool = PgPool::connect(&database_url).await.expect("Failed to connect to the database");
 
     info!("Starting server at 127.0.0.1:8080");
 
     // Authentication middleware
     let auth = HttpAuthentication::bearer(crate::utils::jwt::validator);
 
+    // Set up Prometheus metrics
+    let mut labels = HashMap::new();
+    labels.insert("app".to_string(), "fitbyte_cakalang".to_string()); // Add custom labels
+    let prometheus = PrometheusMetricsBuilder::new("api")
+        .endpoint("/metrics")
+        .const_labels(labels)
+        .build()
+        .expect("Failed to create Prometheus metrics");
+
     // Start the HTTP server
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
-            .app_data(web::Data::new(pool.clone()))
-            .app_data(web::Data::new(s3_client.clone()))
+            .wrap(Logger::default()) // Logging middleware
+            .wrap(prometheus.clone()) // Prometheus metrics middleware
+            .app_data(web::Data::new(pool.clone())) // Database pool
+            .app_data(web::Data::new(s3_client.clone())) // S3 client
             .service(
                 web::resource("/v1/login")
                     .route(web::post().to(handlers::auth::login)),
