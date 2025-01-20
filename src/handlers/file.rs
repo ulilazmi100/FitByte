@@ -5,18 +5,17 @@ use std::env;
 use serde_json::json;
 use actix_multipart::Multipart;
 use futures_util::StreamExt;
-use tokio::sync::oneshot;
+use tokio::spawn;
 use log::{info, error};
 use infer;
-
-// Define the type alias for the upload result
-type UploadResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 pub async fn upload_file(
     req: HttpRequest,
     s3_client: web::Data<S3Client>,
     payload: web::Payload,
 ) -> Result<HttpResponse, Error> {
+    info!("Received file upload request");
+
     let mut multipart = Multipart::new(&req.headers(), payload);
     let mut file_data = Vec::new();
     let mut file_size = 0;
@@ -81,38 +80,31 @@ pub async fn upload_file(
     info!("Uploading file to S3: {}", s3_uri);
 
     // Upload the file to S3
-    let (tx, rx) = oneshot::channel::<UploadResult>();
     let s3_client_clone = s3_client.clone();
 
-    tokio::spawn(async move {
-        match s3_client_clone.put_object()
+    let upload_task = spawn(async move {
+        s3_client_clone.put_object()
             .bucket(&bucket_name)
             .key(&file_name)
             .body(file_data.into())
             .send()
             .await
-        {
-            Ok(_) => {
-                let _ = tx.send(Ok(()));
-            }
-            Err(err) => {
-                let _ = tx.send(Err(err.into()));
-            }
-        }
     });
 
-    match rx.await {
-        Ok(Ok(())) => {
-            // Return the S3 URI
+    // Await the upload task
+    match upload_task.await {
+        Ok(Ok(_)) => {
+            // Successfully uploaded to S3
+            info!("File uploaded to S3 successfully");
             Ok(HttpResponse::Ok().json(json!({ "uri": s3_uri })))
         }
         Ok(Err(err)) => {
             error!("Failed to upload to S3: {:?}", err);
             Err(actix_web::error::ErrorInternalServerError("Failed to upload to S3"))
         }
-        Err(_) => {
-            error!("Upload task canceled");
-            Err(actix_web::error::ErrorServiceUnavailable("Upload task canceled"))
+        Err(err) => {
+            error!("Upload task failed: {:?}", err);
+            Err(actix_web::error::ErrorServiceUnavailable("Upload task failed"))
         }
     }
 }
