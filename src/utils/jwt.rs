@@ -1,9 +1,10 @@
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
+use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
 use serde::{Deserialize, Serialize};
 use std::env;
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use actix_web::dev::ServiceRequest;
 use actix_web::{Error, HttpMessage};
+use chrono::Utc;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -11,9 +12,9 @@ pub struct Claims {
     pub exp: usize,  // Expiration time
 }
 
-/// Generates a JWT token for the given email.
+/// Generates a JWT token for the given email
 pub fn generate_token(email: &str) -> Result<String, jsonwebtoken::errors::Error> {
-    let expiration = chrono::Utc::now()
+    let expiration = Utc::now()
         .checked_add_signed(chrono::Duration::days(7))
         .expect("Invalid timestamp")
         .timestamp() as usize;
@@ -23,40 +24,59 @@ pub fn generate_token(email: &str) -> Result<String, jsonwebtoken::errors::Error
         exp: expiration,
     };
 
+    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref()),
+        &EncodingKey::from_secret(jwt_secret.as_ref()),
     )
 }
 
-/// Validates a JWT token and returns the claims if valid.
-pub fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-    decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(env::var("JWT_SECRET").unwrap().as_ref()),
-        &Validation::new(jsonwebtoken::Algorithm::HS256),
-    )
-    .map(|data| data.claims)
+/// Async token validation using spawn_blocking for CPU-bound operations
+async fn validate_token_async(token: &str, jwt_secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
+    let token = token.to_owned();
+    let secret = jwt_secret.to_owned();
+    
+    actix_web::rt::task::spawn_blocking(move || {
+        decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(secret.as_ref()),
+            &Validation::new(Algorithm::HS256),
+        )
+        .map(|data| data.claims)
+    })
+    .await
+    .unwrap_or_else(|_| Err(jsonwebtoken::errors::Error::from(jsonwebtoken::errors::ErrorKind::InvalidToken)))
 }
 
-/// Validator function for the `HttpAuthentication::bearer` middleware.
-/// This function checks if the provided Bearer token is valid.
+/// Async validator for Bearer authentication
 pub async fn validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let token = credentials.token();
+    let jwt_secret = match env::var("JWT_SECRET") {
+        Ok(secret) => secret,
+        Err(_) => return Err((actix_web::error::ErrorInternalServerError("JWT secret not configured"), req)),
+    };
 
-    match validate_token(token) {
+    match validate_token_async(credentials.token(), &jwt_secret).await {
         Ok(claims) => {
-            // Attach claims to the request extensions
+            // Manual expiration check
+            let now = Utc::now().timestamp() as usize;
+            if claims.exp < now {
+                return Err((actix_web::error::ErrorUnauthorized("Token expired"), req));
+            }
+            
             req.extensions_mut().insert(claims);
             Ok(req)
         }
-        Err(_) => {
-            // Return an error with the original request
-            Err((actix_web::error::ErrorUnauthorized("Invalid token"), req))
+        Err(e) => {
+            let error = match e.kind() {
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature => 
+                    actix_web::error::ErrorUnauthorized("Token expired"),
+                _ => actix_web::error::ErrorUnauthorized("Invalid token"),
+            };
+            Err((error, req))
         }
     }
 }
