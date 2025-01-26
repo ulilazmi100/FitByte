@@ -41,3 +41,16 @@ A backend application for tracking fitness activities, ProjectSprint Batch 3 Wee
 
 Functional Test:
 ![image](https://github.com/user-attachments/assets/cb3489ad-37e5-4828-ab90-3e81c6ec956b)
+
+
+Load Test:
+1. Commit: d3dc3752e662ded8eb07c2df4fb0989b0e9e315d [d3dc375]
+    "prod-cakalang-fafa" = {
+      allow_internet = true
+      allow_view_ec2 = true
+      ec2_instances  = ["t4g.small"]
+      db_type        = "postgres"
+      db_disk        = "standard"
+      db_instances   = ["t4g.small"]
+    }
+![image](https://github.com/user-attachments/assets/f8e8464f-dddf-4860-954f-769bbddf3a14)
