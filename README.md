@@ -35,3 +35,9 @@ A backend application for tracking fitness activities, ProjectSprint Batch 3 Wee
 - `AWS_SECRET_ACCESS_KEY`: The AWS secret access key for S3 integration.
 - `AWS_REGION`: The AWS region for S3 integration.
 - `AWS_S3_BUCKET_NAME`: The S3 bucket name for file uploads.
+
+
+## Test Results
+
+Functional Test:
+![image](https://github.com/user-attachments/assets/cb3489ad-37e5-4828-ab90-3e81c6ec956b)
