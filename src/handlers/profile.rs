@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse, HttpMessage};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use chrono::Utc;
-use crate::models::user::User;
+use crate::models::user::{GetUserProfile, GetUserId};
 use crate::errors::AppError;
 use crate::utils::validation::{validate_preference, validate_weight_unit, validate_height_unit, validate_url};
 use crate::utils::jwt::Claims;
@@ -57,8 +57,8 @@ pub async fn get_profile(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        GetUserProfile,
+        "SELECT preference, weight_unit, height_unit, weight, height, name, image_uri FROM users WHERE email = $1",
         claims.sub
     )
     .fetch_optional(&**pool)
@@ -73,7 +73,7 @@ pub async fn get_profile(
         height_unit: user.height_unit,
         weight: user.weight,
         height: user.height,
-        email: user.email,
+        email: claims.sub.clone(),
         name: user.name,
         image_uri: user.image_uri,
     }))
@@ -127,8 +127,8 @@ pub async fn update_profile(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        GetUserId,
+        "SELECT user_id FROM users WHERE email = $1",
         claims.sub
     )
     .fetch_optional(&**pool)
@@ -161,7 +161,7 @@ pub async fn update_profile(
         height_unit: updates.height_unit.clone(),
         weight: updates.weight,
         height: updates.height,
-        email: user.email,
+        email: claims.sub.clone(),
         name: updates.name.clone(),
         image_uri: updates.image_uri.clone(),
     }))

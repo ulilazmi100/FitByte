@@ -9,7 +9,7 @@ use validator::Validate;
 use std::env;
 use rand;
 use crate::utils::jwt::Claims;
-use crate::models::user::User;
+use crate::models::user;
 use crate::errors::AppError;
 
 #[derive(Deserialize, Validate)]
@@ -37,8 +37,8 @@ pub async fn login(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        user::GetUserPassword,
+        "SELECT password FROM users WHERE email = $1",
         req.email
     )
     .fetch_optional(&**pool)
@@ -55,7 +55,7 @@ pub async fn login(
 
     // Generate JWT token
     let claims = Claims {
-        sub: user.email.clone(),
+        sub: req.email.clone(),
         exp: (Utc::now() + chrono::Duration::days(7)).timestamp() as usize,
     };
     let token = encode(
@@ -67,7 +67,7 @@ pub async fn login(
 
     // Return response
     Ok(HttpResponse::Ok().json(AuthResponse {
-        email: user.email,
+        email: req.email.clone(),
         token,
     }))
 }
