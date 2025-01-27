@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use crate::models::{activity::Activity, user::User};
+use crate::models::{activity::Activity, activity::GetActivityCreatedAt, user::GetUserId};
 use crate::errors::AppError;
 use crate::utils::jwt::Claims;
 
@@ -71,8 +71,8 @@ pub async fn create_activity(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        GetUserId,
+        "SELECT user_id FROM users WHERE email = $1",
         claims.sub
     )
     .fetch_optional(&**pool)
@@ -132,8 +132,8 @@ pub async fn get_activities(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        GetUserId,
+        "SELECT user_id FROM users WHERE email = $1",
         claims.sub
     )
     .fetch_optional(&**pool)
@@ -217,8 +217,8 @@ pub async fn update_activity(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        GetUserId,
+        "SELECT user_id FROM users WHERE email = $1",
         claims.sub
     )
     .fetch_optional(&**pool)
@@ -228,8 +228,8 @@ pub async fn update_activity(
 
     // Fetch activity from database
     let activity = sqlx::query_as!(
-        Activity,
-        "SELECT * FROM activities WHERE activity_id = $1 AND user_id = $2",
+        GetActivityCreatedAt,
+        "SELECT created_at FROM activities WHERE activity_id = $1 AND user_id = $2",
         *activity_id,
         user.user_id
     )
@@ -287,8 +287,8 @@ pub async fn delete_activity(
 
     // Fetch user from database
     let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
+        GetUserId,
+        "SELECT user_id FROM users WHERE email = $1",
         claims.sub
     )
     .fetch_optional(&**pool)

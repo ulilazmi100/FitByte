@@ -14,3 +14,7 @@ pub struct Activity {
     pub created_at: chrono::DateTime<Utc>,
     pub updated_at: chrono::DateTime<Utc>,
 }
+
+pub struct GetActivityCreatedAt {
+    pub created_at: chrono::DateTime<Utc>,
+}
