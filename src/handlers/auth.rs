@@ -3,11 +3,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 use chrono::Utc;
-use argon2::{Argon2, password_hash::PasswordHasher, password_hash::SaltString, PasswordVerifier};
+use bcrypt::{hash, verify};
 use jsonwebtoken::{encode, Header, EncodingKey};
 use validator::Validate;
 use std::env;
-use rand;
 use crate::utils::jwt::Claims;
 use crate::models::user;
 use crate::errors::AppError;
@@ -46,12 +45,12 @@ pub async fn login(
     .map_err(|_| AppError::InternalServerError("Database error".to_string()))?
     .ok_or_else(|| AppError::NotFound("Email not found".to_string()))?;
 
-    // Verify password
-    let parsed_hash = argon2::PasswordHash::new(&user.password)
-        .map_err(|_| AppError::InternalServerError("Invalid password hash".to_string()))?;
-    Argon2::default()
-        .verify_password(req.password.as_bytes(), &parsed_hash)
-        .map_err(|_| AppError::Unauthorized("Invalid password".to_string()))?;
+    // Verify password using bcrypt
+    let is_valid = verify(req.password.as_str(), &user.password)
+        .map_err(|_| AppError::InternalServerError("Password verification error".to_string()))?;
+    if !is_valid {
+        return Err(AppError::Unauthorized("Invalid password".to_string()));
+    }
 
     // Generate JWT token
     let claims = Claims {
@@ -90,12 +89,9 @@ pub async fn register(
         return Err(AppError::Conflict("Email already exists".to_string()));
     }
 
-    // Hash password
-    let salt = SaltString::generate(&mut rand::thread_rng());
-    let argon2 = Argon2::default();
-    let password_hash = argon2.hash_password(req.password.as_bytes(), &salt)
-        .map_err(|_| AppError::InternalServerError("Hashing error".to_string()))?
-        .to_string();
+    // Hash password with bcrypt
+    let password_hash = hash(req.password.as_str(), 10)
+        .map_err(|_| AppError::InternalServerError("Hashing error".to_string()))?;
 
     // Insert user into database
     let user_id = Uuid::new_v4();
