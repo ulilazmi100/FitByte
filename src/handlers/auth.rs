@@ -1,7 +1,6 @@
 use actix_web::{web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use uuid::Uuid;
 use chrono::Utc;
 use bcrypt::{hash, verify};
 use jsonwebtoken::{encode, Header, EncodingKey};
