@@ -12,14 +12,7 @@ use crate::models::user;
 use crate::errors::AppError;
 use actix_web::rt::task::spawn_blocking;
 use lazy_static::lazy_static;
-use std::sync::Arc;
-use tokio::sync::Semaphore;
 use moka::sync::Cache;
-
-// Global semaphore with permits matching pool size (e.g., 90)
-lazy_static! {
-    static ref DB_SEMAPHORE: Arc<Semaphore> = Arc::new(Semaphore::new(90)); // Match pool size
-}
 
 lazy_static! {
     static ref EMAIL_CACHE: Cache<String, bool> = Cache::new(10_000); //Important, the load test only got like 200 emails and took resource, may cause test fail if removed
@@ -123,10 +116,6 @@ pub async fn register(
         .await
         .map_err(|_| AppError::InternalServerError("UUID generation failed".to_string()))?;
 
-    let permit = DB_SEMAPHORE.clone().acquire_owned().await.map_err(|_| {
-        AppError::InternalServerError("Database connection limit reached".to_string())
-    })?;
-
     // Insert and check if email already exists
     let result = sqlx::query!(
         "INSERT INTO users (user_id, email, password, created_at, updated_at) 
@@ -138,8 +127,6 @@ pub async fn register(
     )
     .execute(&**pool)
     .await;
-
-    drop(permit);
 
     // Check if email already exists
     let rows_affected = match result {
