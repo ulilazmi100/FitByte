@@ -33,7 +33,7 @@ async fn main() -> std::io::Result<()> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = sqlx::postgres::PgPoolOptions::new()
             .max_connections(90)
-            // .max_lifetime(std::time::Duration::from_secs(30))  // Recycle connections may increase throughput but also failure
+            // .max_lifetime(std::time::Duration::from_secs(30))  // Recycle connections may increase throughput but also failure (upon further test it may also be just failure and less throughput)
             .idle_timeout(std::time::Duration::from_secs(10))
             .connect(&database_url)
             .await
@@ -95,7 +95,7 @@ async fn main() -> std::io::Result<()> {
             )
     })
     .backlog(10_000)
-    // .client_request_timeout(std::time::Duration::from_secs(2)) // May increase throughput but also failure
+    // .client_request_timeout(std::time::Duration::from_secs(2)) // May increase throughput but also failure (upon further test it may also be just failure and less throughput)
     .bind(&bind_address)?
     .run()
     .await
